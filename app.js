@@ -1,4 +1,4 @@
-// Postify — app.js with Supabase Auth
+// Postify — app.js with Supabase Auth + Forgot Password + Personal Profile
 const SCRAPER = "https://autolister-scraper-production.up.railway.app";
 const SUPABASE_URL = "https://xfkunytzqduvgzauywtq.supabase.co";
 const SUPABASE_KEY = "sb_publishable_ro3uOddWt3ZUtnT_ZTkIKw_v7L8_44S";
@@ -46,18 +46,9 @@ window.addEventListener("load", async () => {
   } else {
     showAuth();
   }
-
-  // Auto-load from Chrome Extension
-  const params = new URLSearchParams(window.location.search);
-  const urlParam = params.get("url");
-  const autoload = params.get("autoload");
-  if (urlParam && autoload === "1" && session) {
-    document.getElementById("url-input").value = decodeURIComponent(urlParam);
-    setTimeout(() => runGenerate(), 500);
-  }
 });
 
-// ─── AUTH ─────────────────────────────────────────────────────────────────────
+// ─── AUTH SCREENS ─────────────────────────────────────────────────────────────
 function showAuth() {
   document.getElementById("auth-screen").style.display = "flex";
   document.getElementById("setup-screen").style.display = "none";
@@ -66,14 +57,23 @@ function showAuth() {
 
 function showSignup() {
   document.getElementById("signin-form").style.display = "none";
+  document.getElementById("forgot-form").style.display = "none";
   document.getElementById("signup-form").style.display = "block";
 }
 
 function showSignin() {
   document.getElementById("signup-form").style.display = "none";
+  document.getElementById("forgot-form").style.display = "none";
   document.getElementById("signin-form").style.display = "block";
 }
 
+function forgotPassword() {
+  document.getElementById("signin-form").style.display = "none";
+  document.getElementById("signup-form").style.display = "none";
+  document.getElementById("forgot-form").style.display = "block";
+}
+
+// ─── SIGN IN ──────────────────────────────────────────────────────────────────
 async function signIn() {
   const email = document.getElementById("signin-email").value.trim();
   const password = document.getElementById("signin-password").value;
@@ -93,6 +93,7 @@ async function signIn() {
   await loadProfile();
 }
 
+// ─── SIGN UP ──────────────────────────────────────────────────────────────────
 async function signUp() {
   const email = document.getElementById("signup-email").value.trim();
   const password = document.getElementById("signup-password").value;
@@ -112,6 +113,41 @@ async function signUp() {
   showSetup();
 }
 
+// ─── FORGOT PASSWORD ──────────────────────────────────────────────────────────
+async function sendReset() {
+  const email = document.getElementById("forgot-email").value.trim();
+  const errEl = document.getElementById("forgot-error");
+  const sucEl = document.getElementById("forgot-success");
+  const btn = document.getElementById("forgot-btn");
+
+  errEl.style.display = "none";
+  sucEl.style.display = "none";
+
+  if (!email) {
+    errEl.textContent = "Please enter your email address.";
+    errEl.style.display = "block";
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = "Sending...";
+
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: "https://postify-ivory-gamma.vercel.app"
+  });
+
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.style.display = "block";
+    btn.disabled = false; btn.textContent = "Send Reset Link";
+    return;
+  }
+
+  sucEl.textContent = "✓ Reset link sent! Check your email inbox.";
+  sucEl.style.display = "block";
+  btn.disabled = false; btn.textContent = "Send Reset Link";
+}
+
+// ─── PROFILE ──────────────────────────────────────────────────────────────────
 async function loadProfile() {
   const { data } = await sb.from("profiles").select("*").eq("id", state.user.id).single();
   if (data && data.dealership_name) {
@@ -122,7 +158,6 @@ async function loadProfile() {
   }
 }
 
-// ─── SETUP ────────────────────────────────────────────────────────────────────
 function showSetup() {
   document.getElementById("auth-screen").style.display = "none";
   document.getElementById("setup-screen").style.display = "block";
@@ -131,20 +166,28 @@ function showSetup() {
 
 async function saveProfile() {
   const dealer = document.getElementById("setup-dealer").value.trim();
-  const phone = document.getElementById("setup-phone").value.trim();
-  if (!dealer || !phone) { alert("Please enter your dealership name and phone number."); return; }
+  const cell = document.getElementById("setup-cell").value.trim();
+  if (!dealer || !cell) {
+    alert("Please enter your dealership name and your direct cell number.");
+    return;
+  }
 
   const profile = {
     id: state.user.id,
     email: state.user.email,
+    salesperson_name: document.getElementById("setup-name").value.trim(),
+    salesperson_title: document.getElementById("setup-title").value.trim(),
+    salesperson_cell: cell,
+    salesperson_email: document.getElementById("setup-email-display").value.trim(),
     dealership_name: dealer,
-    phone,
+    phone: document.getElementById("setup-phone").value.trim(),
     address: document.getElementById("setup-address").value.trim(),
     website: document.getElementById("setup-website").value.trim(),
     custom_cta: document.getElementById("setup-cta").value.trim()
   };
 
-  await sb.from("profiles").upsert(profile);
+  const { error } = await sb.from("profiles").upsert(profile);
+  if (error) { alert("Error saving profile: " + error.message); return; }
   state.profile = profile;
   showApp();
 }
@@ -155,13 +198,14 @@ function showApp() {
   document.getElementById("setup-screen").style.display = "none";
   document.getElementById("main-app").style.display = "block";
 
+  const p = state.profile;
   if (state.user) {
-    document.getElementById("user-email-display").textContent = state.user.email?.split("@")[0];
+    document.getElementById("user-email-display").textContent = p?.salesperson_name || state.user.email?.split("@")[0];
   }
-  if (state.profile?.dealership_name) {
+  if (p?.dealership_name) {
     document.getElementById("dealer-badge").style.display = "flex";
-    document.getElementById("dealer-name-display").textContent = state.profile.dealership_name;
-    document.getElementById("dealer-phone-display").textContent = state.profile.phone;
+    document.getElementById("dealer-name-display").textContent = p.salesperson_name ? `${p.salesperson_name} · ${p.dealership_name}` : p.dealership_name;
+    document.getElementById("dealer-phone-display").textContent = p.salesperson_cell || p.phone || "";
   }
 
   // Auto-load from Chrome Extension
@@ -175,18 +219,25 @@ function showApp() {
 }
 
 function showUserMenu() {
-  if (confirm(`Signed in as ${state.user?.email}\n\nClick OK to sign out.`)) {
+  const p = state.profile;
+  const name = p?.salesperson_name || state.user?.email;
+  if (confirm(`Signed in as ${name}\n\nClick OK to sign out.`)) {
     sb.auth.signOut().then(() => { state.user = null; state.profile = null; showAuth(); });
   }
 }
 
 function showSettings() {
   if (!state.profile) return;
-  document.getElementById("setup-dealer").value = state.profile.dealership_name || "";
-  document.getElementById("setup-phone").value = state.profile.phone || "";
-  document.getElementById("setup-address").value = state.profile.address || "";
-  document.getElementById("setup-website").value = state.profile.website || "";
-  document.getElementById("setup-cta").value = state.profile.custom_cta || "";
+  const p = state.profile;
+  document.getElementById("setup-name").value = p.salesperson_name || "";
+  document.getElementById("setup-title").value = p.salesperson_title || "";
+  document.getElementById("setup-cell").value = p.salesperson_cell || "";
+  document.getElementById("setup-email-display").value = p.salesperson_email || "";
+  document.getElementById("setup-dealer").value = p.dealership_name || "";
+  document.getElementById("setup-phone").value = p.phone || "";
+  document.getElementById("setup-address").value = p.address || "";
+  document.getElementById("setup-website").value = p.website || "";
+  document.getElementById("setup-cta").value = p.custom_cta || "";
   showSetup();
 }
 
@@ -214,7 +265,7 @@ function connectFacebook() {
     updatePublishPanel(); return;
   }
   alert("In production: Facebook OAuth opens here.\nSimulating connection for demo.");
-  state.fbUser = { name: state.profile?.dealership_name || "Dealer", page: state.profile?.dealership_name || "Your Page" };
+  state.fbUser = { name: state.profile?.salesperson_name || "Dealer", page: state.profile?.dealership_name || "Your Page" };
   document.getElementById("fb-status").innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> ${state.fbUser.page} ✓`;
   updatePublishPanel();
 }
@@ -250,7 +301,14 @@ async function runManual() {
   const title = document.getElementById("m-title").value.trim();
   if (!title) { setError("Please enter a title."); return; }
   const photos = document.getElementById("m-photos").value.split("\n").filter(Boolean);
-  const item = { title, category: document.getElementById("m-category").value, price: parseFloat(document.getElementById("m-price").value)||0, location: document.getElementById("m-location").value, features: document.getElementById("m-details").value.split(",").map(s=>s.trim()).filter(Boolean), photos };
+  const item = {
+    title,
+    category: document.getElementById("m-category").value,
+    price: parseFloat(document.getElementById("m-price").value)||0,
+    location: document.getElementById("m-location").value,
+    features: document.getElementById("m-details").value.split(",").map(s=>s.trim()).filter(Boolean),
+    photos
+  };
   state.item = item; state.selectedPhotos = [...photos];
   clearOutput(); showItemStrip(item); setStatus("AI is writing your listing...");
   await generate(item);
@@ -315,7 +373,9 @@ function renderPhotos(photos) {
 }
 
 function togglePhoto(url) {
-  state.selectedPhotos = state.selectedPhotos.includes(url) ? state.selectedPhotos.filter(p=>p!==url) : [...state.selectedPhotos, url];
+  state.selectedPhotos = state.selectedPhotos.includes(url)
+    ? state.selectedPhotos.filter(p=>p!==url)
+    : [...state.selectedPhotos, url];
   renderPhotos(state.item?.photos||[]);
   updatePhotoCount();
 }
@@ -328,7 +388,9 @@ function updatePublishPanel() {
   const meta = document.getElementById("publish-meta");
   const wrap = document.getElementById("fb-post-btn-wrap");
   if (meta) meta.textContent = `${state.selectedPhotos.length} photo${state.selectedPhotos.length!==1?"s":""} selected · All copy ready`;
-  if (wrap) wrap.innerHTML = state.fbUser ? `<button class="btn-fb" onclick="postToFacebook()"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>Post to Facebook Marketplace</button>` : `<div style="padding:10px;background:#f9fafb;border-radius:8px;font-size:13px;color:#6b7280;text-align:center;margin-bottom:8px">Connect Facebook above to enable one-click posting</div>`;
+  if (wrap) wrap.innerHTML = state.fbUser
+    ? `<button class="btn-fb" onclick="postToFacebook()"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>Post to Facebook Marketplace</button>`
+    : `<div style="padding:10px;background:#f9fafb;border-radius:8px;font-size:13px;color:#6b7280;text-align:center;margin-bottom:8px">Connect Facebook above to enable one-click posting</div>`;
 }
 
 function postToFacebook() { alert("Full auto-posting requires Meta API approval.\n\nUse the Copy button below to post manually."); }
@@ -344,12 +406,23 @@ function showItemStrip(item) {
   const name = item.title||`${item.year||""} ${item.make||""} ${item.model||""} ${item.trim||""}`.trim();
   const strip = document.getElementById("item-strip");
   strip.style.display = "flex";
-  strip.innerHTML = `<strong>${name}</strong>${item.mileage?`<span>${Number(item.mileage).toLocaleString()} mi</span>`:""} ${item.price?`<span>$${Number(item.price).toLocaleString()}</span>`:""} ${item.photos?.length?`<span class="strip-tag">📷 ${item.photos.length} photos</span>`:""}`;
+  strip.innerHTML = `<strong>${name}</strong>
+    ${item.mileage?`<span>${Number(item.mileage).toLocaleString()} mi</span>`:""}
+    ${item.price?`<span>$${Number(item.price).toLocaleString()}</span>`:""}
+    ${item.photos?.length?`<span class="strip-tag">📷 ${item.photos.length} photos</span>`:""}`;
 }
 
-function setStatus(msg) { const el=document.getElementById("status-bar"); el.style.display="flex"; el.textContent=msg; document.getElementById("error-bar").style.display="none"; }
+function setStatus(msg) {
+  const el = document.getElementById("status-bar");
+  el.style.display="flex"; el.textContent=msg;
+  document.getElementById("error-bar").style.display="none";
+}
 function clearStatus() { document.getElementById("status-bar").style.display="none"; }
-function setError(msg) { clearStatus(); const el=document.getElementById("error-bar"); el.style.display="block"; el.textContent=msg; }
+function setError(msg) {
+  clearStatus();
+  const el = document.getElementById("error-bar");
+  el.style.display="block"; el.textContent=msg;
+}
 function clearOutput() {
   document.getElementById("output-section").style.display="none";
   document.getElementById("item-strip").style.display="none";
@@ -372,4 +445,6 @@ function copyAll() {
   setTimeout(()=>event.target.textContent="Copy Full Listing",1800);
 }
 
-document.getElementById("url-input").addEventListener("keydown", e => { if(e.key==="Enter") runGenerate(); });
+document.getElementById("url-input").addEventListener("keydown", e => {
+  if(e.key==="Enter") runGenerate();
+});
