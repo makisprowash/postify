@@ -1,18 +1,218 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Postify — AI Listing Generator</title>
-  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
+
+    /* AUTH SCREEN */
+    .auth-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    .auth-card { background: white; border-radius: 16px; padding: 40px; width: 100%; max-width: 420px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .auth-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+    .auth-logo-icon { width: 44px; height: 44px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 20px; }
+    .auth-logo-name { font-size: 22px; font-weight: 600; }
+    .auth-logo-sub { font-size: 12px; color: #6b7280; }
+    .auth-title { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+    .auth-sub { font-size: 13px; color: #6b7280; margin-bottom: 24px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 500; color: #374151; margin-bottom: 5px; }
+    .form-group input { width: 100%; padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.15s; }
+    .form-group input:focus { border-color: #6366f1; }
+    .auth-btn { width: 100%; padding: 11px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: background 0.15s; }
+    .auth-btn:hover { background: #4f46e5; }
+    .auth-btn:disabled { background: #c4b5fd; cursor: not-allowed; }
+    .auth-switch { text-align: center; margin-top: 16px; font-size: 13px; color: #6b7280; }
+    .auth-switch a { color: #6366f1; cursor: pointer; text-decoration: none; font-weight: 500; }
+    .auth-error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #dc2626; margin-bottom: 14px; display: none; }
+
+    /* SETUP SCREEN */
+    .setup-screen { max-width: 560px; margin: 0 auto; padding: 40px 20px; }
+    .setup-title { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+    .setup-sub { font-size: 13px; color: #6b7280; margin-bottom: 28px; }
+    .setup-card { background: white; border-radius: 14px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); margin-bottom: 16px; }
+    .setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .setup-group { display: flex; flex-direction: column; gap: 5px; }
+    .setup-group.full { grid-column: 1 / -1; }
+    .setup-group label { font-size: 12px; font-weight: 500; color: #374151; }
+    .setup-group input, .setup-group textarea { padding: 9px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.15s; }
+    .setup-group input:focus, .setup-group textarea:focus { border-color: #6366f1; }
+    .setup-group textarea { resize: vertical; }
+    .setup-btn { width: 100%; padding: 11px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    .setup-btn:hover { background: #4f46e5; }
+
+    /* MAIN APP */
+    .app { max-width: 760px; margin: 0 auto; padding: 20px 16px; display: none; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 38px; height: 38px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 9px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 18px; }
+    .logo-name { font-size: 17px; font-weight: 600; }
+    .logo-sub { font-size: 11px; color: #6b7280; }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .fb-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; background: #1877f2; color: white; font-size: 12px; font-weight: 500; cursor: pointer; border: none; }
+    .user-menu { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; border: 1px solid #e5e7eb; background: white; cursor: pointer; font-size: 12px; color: #374151; }
+    .card { background: white; border-radius: 14px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); margin-bottom: 16px; }
+    .section-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1.5px solid #e5e7eb; background: white; color: #6b7280; cursor: pointer; }
+    .tab.active { background: #eef2ff; color: #6366f1; border-color: #6366f1; }
+    .input-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .input-row input { flex: 1; padding: 9px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; outline: none; }
+    .input-row input:focus { border-color: #6366f1; }
+    .btn-primary { padding: 9px 20px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .btn-primary:hover { background: #4f46e5; }
+    .samples { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .sample-label { font-size: 12px; color: #9ca3af; }
+    .sample-btn { padding: 3px 10px; border-radius: 99px; font-size: 12px; border: 1px solid #e5e7eb; background: white; color: #6b7280; cursor: pointer; }
+    .sample-btn:hover { border-color: #6366f1; color: #6366f1; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label { font-size: 12px; color: #6b7280; font-weight: 500; }
+    input, select, textarea { padding: 9px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: #6366f1; }
+    textarea { resize: vertical; }
+    .status-bar { padding: 12px 16px; border-radius: 10px; background: #eef2ff; color: #6366f1; font-size: 13px; margin-bottom: 12px; display: none; }
+    .error-bar { padding: 12px 16px; border-radius: 10px; background: #fef2f2; color: #dc2626; font-size: 13px; margin-bottom: 12px; display: none; }
+    .item-strip { background: white; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; display: none; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 13px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+    .strip-tag { padding: 2px 10px; border-radius: 99px; background: #eef2ff; color: #6366f1; font-size: 12px; }
+    .output-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+    .otab { padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1.5px solid #e5e7eb; background: white; color: #6b7280; cursor: pointer; }
+    .otab.active { background: #eef2ff; color: #6366f1; border-color: #6366f1; }
+    .out-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); margin-bottom: 10px; overflow: hidden; }
+    .out-card-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: #f9fafb; border-bottom: 1px solid #f3f4f6; }
+    .out-label { padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 500; }
+    .label-blue { background: #dbeafe; color: #1d4ed8; }
+    .label-purple { background: #ede9fe; color: #7c3aed; }
+    .label-amber { background: #fef3c7; color: #d97706; }
+    .label-green { background: #dcfce7; color: #16a34a; }
+    .label-teal { background: #ccfbf1; color: #0f766e; }
+    .label-coral { background: #fee2e2; color: #dc2626; }
+    .out-card-actions { display: flex; gap: 6px; }
+    .out-action-btn { padding: 4px 10px; border-radius: 6px; font-size: 12px; border: 1px solid #e5e7eb; background: white; color: #6b7280; cursor: pointer; }
+    .out-action-btn:hover { border-color: #6366f1; color: #6366f1; }
+    .out-card-body { padding: 14px; font-size: 13px; line-height: 1.7; color: #374151; }
+    .highlight-item { display: flex; gap: 8px; padding: 3px 0; }
+    .highlight-dot { color: #16a34a; font-size: 14px; margin-top: 1px; }
+    .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+    .photo-item { position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 4/3; cursor: pointer; border: 2px solid transparent; }
+    .photo-item.selected { border-color: #6366f1; }
+    .photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .photo-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.28); display: flex; align-items: center; justify-content: center; }
+    .photo-num { position: absolute; top: 4px; left: 4px; background: #6366f1; color: white; border-radius: 99px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+    .photo-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .photo-count { font-size: 13px; color: #6b7280; margin-left: auto; }
+    .btn-secondary { padding: 6px 14px; background: white; color: #6366f1; border: 1.5px solid #6366f1; border-radius: 8px; font-size: 12px; cursor: pointer; }
+    .publish-card { background: white; border-radius: 14px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+    .publish-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+    .publish-meta { font-size: 13px; color: #6b7280; margin-bottom: 14px; }
+    .btn-fb { width: 100%; padding: 11px; background: #1877f2; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-copy-fb { width: 100%; padding: 10px; background: white; color: #1a1a2e; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; margin-bottom: 8px; }
+    .btn-copy-fb:hover { border-color: #6366f1; color: #6366f1; }
+    .fb-hint { font-size: 11px; color: #9ca3af; line-height: 1.5; }
+    .btn-full { width: 100%; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1.5px solid #6366f1; background: #eef2ff; color: #6366f1; cursor: pointer; margin-top: 4px; }
+    .dealer-badge { background: #eef2ff; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #6366f1; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
+  </style>
 </head>
 <body>
-  <div class="app">
 
-    <!-- Header -->
-    <header class="header">
+  <!-- AUTH SCREEN -->
+  <div class="auth-screen" id="auth-screen">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <div class="auth-logo-icon">P</div>
+        <div>
+          <div class="auth-logo-name">Postify</div>
+          <div class="auth-logo-sub">AI Listing Generator</div>
+        </div>
+      </div>
+
+      <!-- Sign In -->
+      <div id="signin-form">
+        <div class="auth-title">Welcome back</div>
+        <div class="auth-sub">Sign in to your Postify account</div>
+        <div class="auth-error" id="signin-error"></div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="signin-email" placeholder="you@dealership.com"/>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="signin-password" placeholder="••••••••"/>
+        </div>
+        <button class="auth-btn" id="signin-btn" onclick="signIn()">Sign In</button>
+        <div class="auth-switch">Don't have an account? <a onclick="showSignup()">Sign up free</a></div>
+      </div>
+
+      <!-- Sign Up -->
+      <div id="signup-form" style="display:none">
+        <div class="auth-title">Create your account</div>
+        <div class="auth-sub">Start generating listings in 2 minutes</div>
+        <div class="auth-error" id="signup-error"></div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="signup-email" placeholder="you@dealership.com"/>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="signup-password" placeholder="Min 6 characters"/>
+        </div>
+        <button class="auth-btn" id="signup-btn" onclick="signUp()">Create Account</button>
+        <div class="auth-switch">Already have an account? <a onclick="showSignin()">Sign in</a></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETUP SCREEN -->
+  <div class="setup-screen" id="setup-screen" style="display:none">
+    <div class="auth-logo" style="margin-bottom:24px">
+      <div class="auth-logo-icon">P</div>
+      <div>
+        <div class="auth-logo-name">Postify</div>
+        <div class="auth-logo-sub">AI Listing Generator</div>
+      </div>
+    </div>
+    <div class="setup-title">Set up your dealer profile</div>
+    <div class="setup-sub">This info will appear in every listing you generate. You can update it anytime in Settings.</div>
+    <div class="setup-card">
+      <div class="setup-grid">
+        <div class="setup-group full">
+          <label>Dealership name *</label>
+          <input type="text" id="setup-dealer" placeholder="Folsom Lake CDJR"/>
+        </div>
+        <div class="setup-group">
+          <label>Phone number *</label>
+          <input type="text" id="setup-phone" placeholder="916-461-5883"/>
+        </div>
+        <div class="setup-group">
+          <label>City / Location</label>
+          <input type="text" id="setup-location" placeholder="Folsom, CA"/>
+        </div>
+        <div class="setup-group full">
+          <label>Address</label>
+          <input type="text" id="setup-address" placeholder="12747 Folsom Blvd, Folsom, CA 95630"/>
+        </div>
+        <div class="setup-group full">
+          <label>Website</label>
+          <input type="text" id="setup-website" placeholder="folsomlakecdjr.com"/>
+        </div>
+        <div class="setup-group full">
+          <label>Custom call-to-action (appears at end of every listing)</label>
+          <textarea id="setup-cta" rows="2" placeholder="Call or text Marko at 916-461-5883. We're located at Folsom Lake CDJR, 12747 Folsom Blvd, Folsom CA. Ask about our flexible financing options!"></textarea>
+        </div>
+      </div>
+    </div>
+    <button class="setup-btn" onclick="saveProfile()">Save Profile & Start Generating →</button>
+  </div>
+
+  <!-- MAIN APP -->
+  <div class="app" id="main-app">
+    <div class="header">
       <div class="logo">
         <div class="logo-icon">P</div>
         <div>
@@ -20,129 +220,92 @@
           <div class="logo-sub">AI Listing Generator</div>
         </div>
       </div>
-      <div id="fb-status" class="fb-btn" onclick="connectFacebook()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-        Connect Facebook
+      <div class="header-right">
+        <button class="fb-btn" id="fb-status" onclick="connectFacebook()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          Connect Facebook
+        </button>
+        <button class="user-menu" onclick="showUserMenu()">
+          <span id="user-email-display">Account</span> ▾
+        </button>
       </div>
-    </header>
+    </div>
 
-    <!-- Main -->
-    <main class="main">
+    <!-- Dealer badge -->
+    <div class="dealer-badge" id="dealer-badge" style="display:none">
+      🏢 <span id="dealer-name-display"></span> — <span id="dealer-phone-display"></span>
+      <span style="margin-left:auto;cursor:pointer;color:#9ca3af" onclick="showSettings()">Edit profile</span>
+    </div>
 
-      <!-- Input section -->
-      <section class="card input-section">
-        <div class="section-title">What are you listing?</div>
-        <div class="tabs">
-          <button class="tab active" onclick="setTab('url', this)">Paste URL</button>
-          <button class="tab" onclick="setTab('manual', this)">Manual Entry</button>
+    <!-- Input -->
+    <div class="card">
+      <div class="section-title">What are you listing?</div>
+      <div class="tabs">
+        <button class="tab active" onclick="setTab('url', this)">Paste URL</button>
+        <button class="tab" onclick="setTab('manual', this)">Manual Entry</button>
+      </div>
+      <div id="tab-url">
+        <div class="input-row">
+          <input type="text" id="url-input" placeholder="Paste any vehicle listing URL..."/>
+          <button class="btn-primary" onclick="runGenerate()">Generate</button>
         </div>
-
-        <!-- URL tab -->
-        <div id="tab-url">
-          <div class="input-row">
-            <input type="text" id="url-input" placeholder="Paste any listing URL — vehicle, property, equipment..." />
-            <button class="btn-primary" onclick="runGenerate()">Generate</button>
-          </div>
-          <div class="samples">
-            <span class="sample-label">Try a sample:</span>
-            <button class="sample-btn" onclick="loadSample('ram')">2024 RAM 1500</button>
-            <button class="sample-btn" onclick="loadSample('jeep')">2025 Jeep GC</button>
-            <button class="sample-btn" onclick="loadSample('durango')">2024 Durango R/T</button>
-          </div>
-        </div>
-
-        <!-- Manual tab -->
-        <div id="tab-manual" style="display:none">
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Category</label>
-              <select id="m-category">
-                <option>Vehicle</option>
-                <option>Real Estate</option>
-                <option>Equipment</option>
-                <option>Furniture</option>
-                <option>Electronics</option>
-                <option>Other</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Title / Name *</label>
-              <input type="text" id="m-title" placeholder="2024 RAM 1500 Big Horn" />
-            </div>
-            <div class="form-group">
-              <label>Price</label>
-              <input type="number" id="m-price" placeholder="44995" />
-            </div>
-            <div class="form-group">
-              <label>Location</label>
-              <input type="text" id="m-location" placeholder="Folsom, CA" />
-            </div>
-            <div class="form-group full">
-              <label>Key Details (comma separated)</label>
-              <input type="text" id="m-details" placeholder="5.7L HEMI V8, 4x4, Heated Seats, Apple CarPlay..." />
-            </div>
-            <div class="form-group full">
-              <label>Photo URLs (one per line)</label>
-              <textarea id="m-photos" rows="3" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"></textarea>
-            </div>
-          </div>
-          <button class="btn-primary" style="width:100%;margin-top:8px" onclick="runManual()">Generate Listing</button>
-        </div>
-      </section>
-
-      <!-- Status -->
-      <div id="status-bar" class="status-bar" style="display:none"></div>
-      <div id="error-bar" class="error-bar" style="display:none"></div>
-
-      <!-- Vehicle info strip -->
-      <div id="item-strip" class="item-strip" style="display:none"></div>
-
-      <!-- Output tabs -->
-      <div id="output-section" style="display:none">
-        <div class="output-tabs">
-          <button class="otab active" onclick="setOTab('copy', this)">AI Copy</button>
-          <button class="otab" onclick="setOTab('photos', this)">Photos</button>
-          <button class="otab" onclick="setOTab('publish', this)">Publish</button>
-        </div>
-
-        <!-- AI Copy -->
-        <div id="otab-copy">
-          <div id="out-title-card" class="out-card"></div>
-          <div id="out-seo-card" class="out-card"></div>
-          <div id="out-desc-card" class="out-card"></div>
-          <div id="out-highlights-card" class="out-card"></div>
-          <div id="out-financing-card" class="out-card"></div>
-          <div id="out-cta-card" class="out-card"></div>
-          <button class="btn-secondary full-width" onclick="copyAll()">Copy Full Listing</button>
-        </div>
-
-        <!-- Photos -->
-        <div id="otab-photos" style="display:none">
-          <div id="photo-grid" class="photo-grid"></div>
-          <div class="photo-actions">
-            <button class="btn-secondary" onclick="selectAllPhotos()">Select All</button>
-            <button class="btn-secondary" onclick="clearPhotos()">Clear All</button>
-            <span id="photo-count" class="photo-count">0 selected</span>
-          </div>
-        </div>
-
-        <!-- Publish -->
-        <div id="otab-publish" style="display:none">
-          <div class="publish-card">
-            <div class="publish-title">Publish to Facebook Marketplace</div>
-            <div class="publish-meta" id="publish-meta"></div>
-            <div id="fb-post-btn-wrap">
-              <div class="fb-note">Connect Facebook above to enable one-click posting</div>
-            </div>
-            <button class="btn-copy-fb" onclick="copyAndOpenFB()">
-              Copy listing + open Facebook Marketplace
-            </button>
-            <div class="fb-hint">Copies your full listing and opens Facebook Marketplace in a new tab — paste and go.</div>
-          </div>
+        <div class="samples">
+          <span class="sample-label">Try a sample:</span>
+          <button class="sample-btn" onclick="loadSample('ram')">2024 RAM 1500</button>
+          <button class="sample-btn" onclick="loadSample('jeep')">2025 Jeep GC</button>
+          <button class="sample-btn" onclick="loadSample('durango')">2024 Durango R/T</button>
         </div>
       </div>
+      <div id="tab-manual" style="display:none">
+        <div class="form-grid">
+          <div class="form-group"><label>Category</label><select id="m-category"><option>Vehicle</option><option>Real Estate</option><option>Equipment</option><option>Other</option></select></div>
+          <div class="form-group"><label>Title *</label><input type="text" id="m-title" placeholder="2024 RAM 1500 Big Horn"/></div>
+          <div class="form-group"><label>Price</label><input type="number" id="m-price" placeholder="44995"/></div>
+          <div class="form-group"><label>Location</label><input type="text" id="m-location" placeholder="Folsom, CA"/></div>
+          <div class="form-group full"><label>Key details (comma separated)</label><input type="text" id="m-details" placeholder="5.7L HEMI V8, 4x4, Heated Seats..."/></div>
+          <div class="form-group full"><label>Photo URLs (one per line)</label><textarea id="m-photos" rows="3" placeholder="https://example.com/photo1.jpg"></textarea></div>
+        </div>
+        <button class="btn-primary" style="width:100%;margin-top:10px" onclick="runManual()">Generate Listing</button>
+      </div>
+    </div>
 
-    </main>
+    <div id="status-bar" class="status-bar"></div>
+    <div id="error-bar" class="error-bar"></div>
+    <div id="item-strip" class="item-strip"></div>
+
+    <div id="output-section" style="display:none">
+      <div class="output-tabs">
+        <button class="otab active" onclick="setOTab('content', this)">AI Copy</button>
+        <button class="otab" onclick="setOTab('photos', this)">Photos</button>
+        <button class="otab" onclick="setOTab('publish', this)">Publish</button>
+      </div>
+      <div id="otab-content">
+        <div id="out-title-card" class="out-card"></div>
+        <div id="out-seo-card" class="out-card"></div>
+        <div id="out-desc-card" class="out-card"></div>
+        <div id="out-highlights-card" class="out-card"></div>
+        <div id="out-financing-card" class="out-card"></div>
+        <div id="out-cta-card" class="out-card"></div>
+        <button class="btn-full" onclick="copyAll()">Copy Full Listing</button>
+      </div>
+      <div id="otab-photos" style="display:none">
+        <div id="photo-grid" class="photo-grid"></div>
+        <div class="photo-actions">
+          <button class="btn-secondary" onclick="selectAllPhotos()">Select all</button>
+          <button class="btn-secondary" onclick="clearPhotos()">Clear all</button>
+          <span id="photo-count" class="photo-count">0 selected</span>
+        </div>
+      </div>
+      <div id="otab-publish" style="display:none">
+        <div class="publish-card">
+          <div class="publish-title">Publish to Facebook Marketplace</div>
+          <div class="publish-meta" id="publish-meta"></div>
+          <div id="fb-post-btn-wrap"></div>
+          <button class="btn-copy-fb" onclick="copyAndOpenFB()">Copy listing + open Facebook Marketplace</button>
+          <div class="fb-hint">Copies your full listing and opens Facebook Marketplace in a new tab.</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
