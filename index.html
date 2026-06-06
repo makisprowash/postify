@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Postify — AI Listing Generator</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">P</div>
+        <div>
+          <div class="logo-name">Postify</div>
+          <div class="logo-sub">AI Listing Generator</div>
+        </div>
+      </div>
+      <div id="fb-status" class="fb-btn" onclick="connectFacebook()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+        Connect Facebook
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="main">
+
+      <!-- Input section -->
+      <section class="card input-section">
+        <div class="section-title">What are you listing?</div>
+        <div class="tabs">
+          <button class="tab active" onclick="setTab('url', this)">Paste URL</button>
+          <button class="tab" onclick="setTab('manual', this)">Manual Entry</button>
+        </div>
+
+        <!-- URL tab -->
+        <div id="tab-url">
+          <div class="input-row">
+            <input type="text" id="url-input" placeholder="Paste any listing URL — vehicle, property, equipment..." />
+            <button class="btn-primary" onclick="runGenerate()">Generate</button>
+          </div>
+          <div class="samples">
+            <span class="sample-label">Try a sample:</span>
+            <button class="sample-btn" onclick="loadSample('ram')">2024 RAM 1500</button>
+            <button class="sample-btn" onclick="loadSample('jeep')">2025 Jeep GC</button>
+            <button class="sample-btn" onclick="loadSample('durango')">2024 Durango R/T</button>
+          </div>
+        </div>
+
+        <!-- Manual tab -->
+        <div id="tab-manual" style="display:none">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Category</label>
+              <select id="m-category">
+                <option>Vehicle</option>
+                <option>Real Estate</option>
+                <option>Equipment</option>
+                <option>Furniture</option>
+                <option>Electronics</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Title / Name *</label>
+              <input type="text" id="m-title" placeholder="2024 RAM 1500 Big Horn" />
+            </div>
+            <div class="form-group">
+              <label>Price</label>
+              <input type="number" id="m-price" placeholder="44995" />
+            </div>
+            <div class="form-group">
+              <label>Location</label>
+              <input type="text" id="m-location" placeholder="Folsom, CA" />
+            </div>
+            <div class="form-group full">
+              <label>Key Details (comma separated)</label>
+              <input type="text" id="m-details" placeholder="5.7L HEMI V8, 4x4, Heated Seats, Apple CarPlay..." />
+            </div>
+            <div class="form-group full">
+              <label>Photo URLs (one per line)</label>
+              <textarea id="m-photos" rows="3" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"></textarea>
+            </div>
+          </div>
+          <button class="btn-primary" style="width:100%;margin-top:8px" onclick="runManual()">Generate Listing</button>
+        </div>
+      </section>
+
+      <!-- Status -->
+      <div id="status-bar" class="status-bar" style="display:none"></div>
+      <div id="error-bar" class="error-bar" style="display:none"></div>
+
+      <!-- Vehicle info strip -->
+      <div id="item-strip" class="item-strip" style="display:none"></div>
+
+      <!-- Output tabs -->
+      <div id="output-section" style="display:none">
+        <div class="output-tabs">
+          <button class="otab active" onclick="setOTab('copy', this)">AI Copy</button>
+          <button class="otab" onclick="setOTab('photos', this)">Photos</button>
+          <button class="otab" onclick="setOTab('publish', this)">Publish</button>
+        </div>
+
+        <!-- AI Copy -->
+        <div id="otab-copy">
+          <div id="out-title-card" class="out-card"></div>
+          <div id="out-seo-card" class="out-card"></div>
+          <div id="out-desc-card" class="out-card"></div>
+          <div id="out-highlights-card" class="out-card"></div>
+          <div id="out-financing-card" class="out-card"></div>
+          <div id="out-cta-card" class="out-card"></div>
+          <button class="btn-secondary full-width" onclick="copyAll()">Copy Full Listing</button>
+        </div>
+
+        <!-- Photos -->
+        <div id="otab-photos" style="display:none">
+          <div id="photo-grid" class="photo-grid"></div>
+          <div class="photo-actions">
+            <button class="btn-secondary" onclick="selectAllPhotos()">Select All</button>
+            <button class="btn-secondary" onclick="clearPhotos()">Clear All</button>
+            <span id="photo-count" class="photo-count">0 selected</span>
+          </div>
+        </div>
+
+        <!-- Publish -->
+        <div id="otab-publish" style="display:none">
+          <div class="publish-card">
+            <div class="publish-title">Publish to Facebook Marketplace</div>
+            <div class="publish-meta" id="publish-meta"></div>
+            <div id="fb-post-btn-wrap">
+              <div class="fb-note">Connect Facebook above to enable one-click posting</div>
+            </div>
+            <button class="btn-copy-fb" onclick="copyAndOpenFB()">
+              Copy listing + open Facebook Marketplace
+            </button>
+            <div class="fb-hint">Copies your full listing and opens Facebook Marketplace in a new tab — paste and go.</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
