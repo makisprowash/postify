@@ -28,7 +28,7 @@
     .auth-switch { text-align: center; margin-top: 14px; font-size: 13px; color: #6b7280; }
     .auth-switch a { color: #6366f1; cursor: pointer; text-decoration: none; font-weight: 500; }
     .auth-forgot { text-align: center; margin-top: 10px; }
-    .auth-forgot a { font-size: 12px; color: #9ca3af; cursor: pointer; text-decoration: none; }
+    .auth-forgot a { font-size: 12px; color: #9ca3af; cursor: pointer; }
     .auth-forgot a:hover { color: #6366f1; }
     .auth-error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #dc2626; margin-bottom: 14px; display: none; }
     .auth-success { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #16a34a; margin-bottom: 14px; display: none; }
@@ -180,6 +180,21 @@
         <button class="auth-btn" id="forgot-btn" onclick="sendReset()">Send Reset Link</button>
         <div class="auth-switch"><a onclick="showSignin()">← Back to sign in</a></div>
       </div>
+
+      <!-- Reset Password (from email link) -->
+      <div id="reset-form" style="display:none">
+        <div class="auth-title">Set new password</div>
+        <div class="auth-sub">Choose a strong new password for your account</div>
+        <div class="auth-error" id="reset-error"></div>
+        <div class="auth-success" id="reset-success"></div>
+        <div class="form-group">
+          <label>New Password</label>
+          <input type="password" id="reset-password" placeholder="Min 6 characters"/>
+        </div>
+        <button class="auth-btn" id="reset-btn" onclick="updatePassword()">Set New Password</button>
+        <div class="auth-switch"><a onclick="showSignin()">← Back to sign in</a></div>
+      </div>
+
     </div>
   </div>
 
@@ -214,7 +229,6 @@
           <input type="text" id="setup-email-display" placeholder="marko@folsomlakecdjr.com"/>
         </div>
       </div>
-
       <div class="setup-section-title">🏢 Dealership info</div>
       <div class="setup-grid">
         <div class="setup-group full">
