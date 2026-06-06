@@ -33,6 +33,18 @@ const SAMPLES = {
   }
 };
 
+// ─── AUTO-LOAD FROM CHROME EXTENSION ─────────────────────────────────────────
+window.addEventListener("load", () => {
+  const params = new URLSearchParams(window.location.search);
+  const urlParam = params.get("url");
+  const autoload = params.get("autoload");
+  if (urlParam && autoload === "1") {
+    const decoded = decodeURIComponent(urlParam);
+    document.getElementById("url-input").value = decoded;
+    setTimeout(() => runGenerate(), 500);
+  }
+});
+
 function setTab(tab, el) {
   state.activeTab = tab;
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -122,7 +134,6 @@ async function runManual() {
   await generate(item);
 }
 
-// ─── AI GENERATE — calls Railway /generate endpoint ───────────────────────────
 async function generate(item) {
   try {
     const res = await fetch(`${SCRAPER}/generate`, {
