@@ -39,6 +39,14 @@ const SAMPLES = {
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 window.addEventListener("load", async () => {
+  // Handle password reset redirect from email link
+  const hash = window.location.hash;
+  if (hash.includes("type=recovery")) {
+    showAuth();
+    showPasswordReset();
+    return;
+  }
+
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     state.user = session.user;
@@ -58,19 +66,29 @@ function showAuth() {
 function showSignup() {
   document.getElementById("signin-form").style.display = "none";
   document.getElementById("forgot-form").style.display = "none";
+  document.getElementById("reset-form").style.display = "none";
   document.getElementById("signup-form").style.display = "block";
 }
 
 function showSignin() {
   document.getElementById("signup-form").style.display = "none";
   document.getElementById("forgot-form").style.display = "none";
+  document.getElementById("reset-form").style.display = "none";
   document.getElementById("signin-form").style.display = "block";
 }
 
 function forgotPassword() {
   document.getElementById("signin-form").style.display = "none";
   document.getElementById("signup-form").style.display = "none";
+  document.getElementById("reset-form").style.display = "none";
   document.getElementById("forgot-form").style.display = "block";
+}
+
+function showPasswordReset() {
+  document.getElementById("signin-form").style.display = "none";
+  document.getElementById("signup-form").style.display = "none";
+  document.getElementById("forgot-form").style.display = "none";
+  document.getElementById("reset-form").style.display = "block";
 }
 
 // ─── SIGN IN ──────────────────────────────────────────────────────────────────
@@ -147,6 +165,41 @@ async function sendReset() {
   btn.disabled = false; btn.textContent = "Send Reset Link";
 }
 
+// ─── UPDATE PASSWORD ──────────────────────────────────────────────────────────
+async function updatePassword() {
+  const password = document.getElementById("reset-password").value;
+  const errEl = document.getElementById("reset-error");
+  const sucEl = document.getElementById("reset-success");
+  const btn = document.getElementById("reset-btn");
+
+  errEl.style.display = "none";
+  sucEl.style.display = "none";
+
+  if (!password || password.length < 6) {
+    errEl.textContent = "Password must be at least 6 characters.";
+    errEl.style.display = "block";
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = "Updating...";
+
+  const { error } = await sb.auth.updateUser({ password });
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.style.display = "block";
+    btn.disabled = false; btn.textContent = "Set New Password";
+    return;
+  }
+
+  sucEl.textContent = "✓ Password updated! Signing you in...";
+  sucEl.style.display = "block";
+  setTimeout(async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) { state.user = session.user; await loadProfile(); }
+    else { showSignin(); }
+  }, 2000);
+}
+
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
 async function loadProfile() {
   const { data } = await sb.from("profiles").select("*").eq("id", state.user.id).single();
@@ -208,7 +261,6 @@ function showApp() {
     document.getElementById("dealer-phone-display").textContent = p.salesperson_cell || p.phone || "";
   }
 
-  // Auto-load from Chrome Extension
   const params = new URLSearchParams(window.location.search);
   const urlParam = params.get("url");
   const autoload = params.get("autoload");
@@ -266,7 +318,7 @@ function connectFacebook() {
   }
   alert("In production: Facebook OAuth opens here.\nSimulating connection for demo.");
   state.fbUser = { name: state.profile?.salesperson_name || "Dealer", page: state.profile?.dealership_name || "Your Page" };
-  document.getElementById("fb-status").innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> ${state.fbUser.page} ✓`;
+  document.getElementById("fb-status").innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.45H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> ${state.fbUser.page} ✓`;
   updatePublishPanel();
 }
 
