@@ -1,330 +1,142 @@
-// Postify — app.js
-const SCRAPER = "https://autolister-scraper-production.up.railway.app";
-const CLAUDE  = "https://api.anthropic.com/v1/messages";
+const express = require("express");
+const cors = require("cors");
+const app = express();
 
-// ─── STATE ────────────────────────────────────────────────────────────────────
-let state = {
-  item: null,
-  content: null,
-  selectedPhotos: [],
-  fbUser: null,
-  activeTab: "url",
-  activeOTab: "copy"
-};
+app.use(cors());
+app.options("*", cors());
+app.use(express.json());
 
-// ─── SAMPLE DATA ──────────────────────────────────────────────────────────────
-const SAMPLES = {
-  ram: {
-    year:2024,make:"RAM",model:"1500",trim:"Big Horn Crew Cab 4x4",
-    extColor:"Patriot Blue Pearl",intColor:"Black/Diesel Gray",
-    mileage:12480,price:44995,stockNumber:"P24831",vin:"1C6SRFFT3RN123456",
-    features:["5.7L HEMI V8","8-Speed Auto","Trailer Tow Package","Heated Front Seats","Uconnect 12\"","Apple CarPlay","Bed Utility Group","Remote Start"],
-    description:"Well-maintained one-owner RAM 1500 with full service history.",
-    photos:["https://images.unsplash.com/photo-1609521263047-f8f205293f24?w=800","https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800","https://images.unsplash.com/photo-1556189250-72ba954cfc2b?w=800","https://images.unsplash.com/photo-1503736334956-4c8f8e92946d?w=800","https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=800","https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800"]
-  },
-  jeep: {
-    year:2025,make:"Jeep",model:"Grand Cherokee",trim:"Limited 4x4",
-    extColor:"Diamond Black Crystal",intColor:"Global Black Leather",
-    mileage:5210,price:52490,stockNumber:"J25114",vin:"1C4RJFBG5PC200001",
-    features:["3.6L Pentastar V6","Quadra-Trac II 4WD","Panoramic Sunroof","McIntosh Audio","Heated & Ventilated Seats","Navigation","Blind Spot Monitoring","Power Liftgate"],
-    description:"Nearly new Grand Cherokee Limited with every luxury option.",
-    photos:["https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800","https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800","https://images.unsplash.com/photo-1502877338535-766e1452684a?w=800","https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800","https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800"]
-  },
-  durango: {
-    year:2024,make:"Dodge",model:"Durango",trim:"R/T AWD",
-    extColor:"Destroyer Gray",intColor:"Black Nappa Leather",
-    mileage:21300,price:48750,stockNumber:"D24567",vin:"1C4SDJCT5RC400012",
-    features:["5.7L HEMI V8 eTorque","AWD","3-Row Seating","20\" Wheels","Harman Kardon Audio","Heated 2nd Row","Tow N Go Package","Performance Pages"],
-    description:"Sporty and spacious — the perfect family hauler with muscle.",
-    photos:["https://images.unsplash.com/photo-1485291571150-772bcfc10da5?w=800","https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800","https://images.unsplash.com/photo-1546614042-7df3c24c9e5d?w=800","https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800","https://images.unsplash.com/photo-1580274455191-1c62238fa333?w=800"]
-  }
-};
+// Health check
+app.get("/", (req, res) => {
+  res.json({ status: "AutoLister Scraper running" });
+});
 
-// ─── TAB SWITCHING ────────────────────────────────────────────────────────────
-function setTab(tab, el) {
-  state.activeTab = tab;
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  el.classList.add("active");
-  document.getElementById("tab-url").style.display = tab === "url" ? "block" : "none";
-  document.getElementById("tab-manual").style.display = tab === "manual" ? "block" : "none";
-}
+// ─── SCRAPE ───────────────────────────────────────────────────────────────────
+app.post("/scrape", async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: "url is required" });
 
-function setOTab(tab, el) {
-  state.activeOTab = tab;
-  document.querySelectorAll(".otab").forEach(t => t.classList.remove("active"));
-  el.classList.add("active");
-  ["copy","photos","publish"].forEach(t => {
-    document.getElementById(`otab-${t}`).style.display = t === tab ? "block" : "none";
-  });
-}
-
-// ─── FACEBOOK ─────────────────────────────────────────────────────────────────
-function connectFacebook() {
-  if (state.fbUser) {
-    state.fbUser = null;
-    const btn = document.getElementById("fb-status");
-    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Connect Facebook`;
-    btn.classList.remove("connected");
-    updatePublishPanel();
-    return;
-  }
-  alert("In production: Facebook OAuth popup opens here.\n\nSimulating successful connection.");
-  state.fbUser = { name: "Marko Petricevic", page: "Folsom Lake CDJR" };
-  const btn = document.getElementById("fb-status");
-  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> ${state.fbUser.page} ✓`;
-  btn.classList.add("connected");
-  updatePublishPanel();
-}
-
-// ─── LOAD SAMPLE ──────────────────────────────────────────────────────────────
-async function loadSample(key) {
-  const item = SAMPLES[key];
-  if (!item) return;
-  setStatus("AI is writing your listing...");
-  state.item = item;
-  state.selectedPhotos = [...(item.photos || [])];
-  showItemStrip(item);
-  await generate(item);
-}
-
-// ─── URL SCRAPE ───────────────────────────────────────────────────────────────
-async function runGenerate() {
-  const url = document.getElementById("url-input").value.trim();
-  if (!url) return;
-  clearOutput();
-  setStatus("Extracting listing data...");
+  let browser;
   try {
-    const res = await fetch(`${SCRAPER}/scrape`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-      mode: "cors"
+    const puppeteer = require("puppeteer");
+    browser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
     });
-    if (!res.ok) throw new Error(`Scraper error ${res.status}`);
-    const item = await res.json();
-    state.item = item;
-    state.selectedPhotos = [...(item.photos || [])];
-    showItemStrip(item);
-    setStatus("AI is writing your listing...");
-    await generate(item);
-  } catch (e) {
-    setError(e.message);
+
+    const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36");
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await new Promise((r) => setTimeout(r, 2000));
+
+    const vehicle = await page.evaluate(() => {
+      const html = document.documentElement.innerHTML;
+      const getMeta = (n) =>
+        document.querySelector(`meta[property="${n}"]`)?.content ||
+        document.querySelector(`meta[name="${n}"]`)?.content || "";
+
+      const vinMatch = html.match(/\b([A-HJ-NPR-Z0-9]{17})\b/);
+      const vin = vinMatch ? vinMatch[1] : "";
+
+      const priceMatch = html.match(/\$\s*([\d,]{4,7})/);
+      const price = priceMatch ? parseInt(priceMatch[1].replace(/,/g, "")) : 0;
+
+      const mileMatch = html.match(/([\d,]+)\s*(?:miles?|mi\.?)/i);
+      const mileage = mileMatch ? parseInt(mileMatch[1].replace(/,/g, "")) : 0;
+
+      const title = document.title || getMeta("og:title") || "";
+      const ymMatch = title.match(/(\d{4})\s+([A-Za-z\-]+)\s+([\w\s]+)/);
+      const year = ymMatch ? parseInt(ymMatch[1]) : 0;
+      const make = ymMatch ? ymMatch[2] : "";
+      const model = ymMatch ? ymMatch[3].split(/\s+/).slice(0, 2).join(" ").trim() : "";
+
+      const description = getMeta("og:description") || getMeta("description") || "";
+      const ogImage = getMeta("og:image");
+
+      const imgs = Array.from(document.querySelectorAll("img"))
+        .map(i => i.src || i.getAttribute("data-src") || "")
+        .filter(s => s.startsWith("http") &&
+          !s.includes("logo") && !s.includes("icon") &&
+          s.match(/\.(jpg|jpeg|png|webp)(\?|$)/i));
+
+      const photos = [...new Set([...(ogImage ? [ogImage] : []), ...imgs])].slice(0, 20);
+
+      const featureEls = document.querySelectorAll(
+        '[class*="feature"] li, [class*="option"] li, [class*="equipment"] li'
+      );
+      const features = Array.from(featureEls)
+        .map(el => el.textContent.trim())
+        .filter(f => f.length > 2 && f.length < 60)
+        .slice(0, 20);
+
+      const stockMatch = html.match(/stock\s*(?:#|number)?:?\s*([A-Z0-9]{4,12})/i);
+      const stockNumber = stockMatch ? stockMatch[1] : "";
+
+      const extMatch = html.match(/exterior[^:]*:([^\n<,]{3,40})/i);
+      const intMatch = html.match(/interior[^:]*:([^\n<,]{3,40})/i);
+      const extColor = extMatch ? extMatch[1].trim() : "";
+      const intColor = intMatch ? intMatch[1].trim() : "";
+
+      return { vin, year, make, model, trim: "", extColor, intColor, mileage, price, stockNumber, features, description, photos };
+    });
+
+    await browser.close();
+    res.json(vehicle);
+  } catch (err) {
+    if (browser) await browser.close().catch(() => {});
+    console.error("Scrape error:", err.message);
+    res.status(500).json({ error: err.message });
   }
-}
+});
 
-// ─── MANUAL ENTRY ─────────────────────────────────────────────────────────────
-async function runManual() {
-  const title = document.getElementById("m-title").value.trim();
-  if (!title) { setError("Please enter a title."); return; }
-  const photos = document.getElementById("m-photos").value.split("\n").filter(Boolean);
-  const item = {
-    title,
-    category: document.getElementById("m-category").value,
-    price: parseFloat(document.getElementById("m-price").value) || 0,
-    location: document.getElementById("m-location").value,
-    features: document.getElementById("m-details").value.split(",").map(s => s.trim()).filter(Boolean),
-    photos
-  };
-  state.item = item;
-  state.selectedPhotos = [...photos];
-  clearOutput();
-  showItemStrip(item);
-  setStatus("AI is writing your listing...");
-  await generate(item);
-}
+// ─── GENERATE ─────────────────────────────────────────────────────────────────
+app.post("/generate", async (req, res) => {
+  const { vehicle } = req.body;
+  if (!vehicle) return res.status(400).json({ error: "vehicle required" });
 
-// ─── AI GENERATE ─────────────────────────────────────────────────────────────
-async function generate(item) {
-  try {
-    const feats = Array.isArray(item.features) ? item.features.join(", ") : (item.features || "");
-    const name = item.title || `${item.year||""} ${item.make||""} ${item.model||""} ${item.trim||""}`.trim();
-    const prompt = `You are Postify AI, an expert listing copywriter for Facebook Marketplace at Folsom Lake CDJR in Folsom, CA.
+  const feats = Array.isArray(vehicle.features) ? vehicle.features.join(", ") : (vehicle.features || "");
+  const name = vehicle.title || `${vehicle.year||""} ${vehicle.make||""} ${vehicle.model||""} ${vehicle.trim||""}`.trim();
+
+  const prompt = `You are Postify AI, expert listing copywriter for Facebook Marketplace at Folsom Lake CDJR in Folsom, CA.
 
 Item: ${name}
-Category: ${item.category || "Vehicle"}
-Price: $${Number(item.price||0).toLocaleString()}
-Location: ${item.location || "Folsom, CA"}
-Details: ${feats || "N/A"}
-VIN: ${item.vin || "N/A"} | Stock: ${item.stockNumber || "N/A"}
-Mileage: ${item.mileage ? Number(item.mileage).toLocaleString() + " miles" : "N/A"}
-Exterior: ${item.extColor || "N/A"} | Interior: ${item.intColor || "N/A"}
-Notes: ${item.description || ""}
+Price: $${Number(vehicle.price||0).toLocaleString()}
+Details: ${feats||"N/A"}
+VIN: ${vehicle.vin||"N/A"} | Stock: ${vehicle.stockNumber||"N/A"}
+Mileage: ${vehicle.mileage ? Number(vehicle.mileage).toLocaleString()+" miles" : "N/A"}
+Exterior: ${vehicle.extColor||"N/A"} | Interior: ${vehicle.intColor||"N/A"}
+Notes: ${vehicle.description||""}
 
-Return ONLY valid JSON, no markdown:
-{"title":"Facebook Marketplace title max 100 chars, no emojis","description":"3 paragraphs. Para 1: item appeal. Para 2: key features/details. Para 3: why buy from Folsom Lake CDJR. Friendly NorCal tone.","highlights":["5-7 bullet points each starting with a power word"],"financing":"2-3 sentences about flexible financing, all credit welcome. No specific APR.","cta":"2 sentences. Urgency + contact. Mention Folsom Lake CDJR.","seoTitle":"SEO variant with Folsom CA or NorCal"}`;
+Return ONLY valid JSON, no markdown, no explanation:
+{"title":"FB Marketplace title max 100 chars, no emojis","description":"3 paragraphs. Para 1: vehicle appeal. Para 2: key features. Para 3: why buy from Folsom Lake CDJR NorCal.","highlights":["5-7 bullets each starting with a power word like Loaded/One-Owner/Low-Miles"],"financing":"2-3 sentences. Flexible financing, all credit welcome. No specific APR.","cta":"2 sentences. Urgency + contact. Mention Folsom Lake CDJR.","seoTitle":"SEO variant with Folsom CA or NorCal"}`;
 
-    const res = await fetch(CLAUDE, {
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 1000,
         messages: [{ role: "user", content: prompt }]
       })
     });
-    if (!res.ok) throw new Error(`Claude API error ${res.status}`);
-    const data = await res.json();
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message || "Claude API error");
     const text = data.content?.map(b => b.text || "").join("") || "";
     const content = JSON.parse(text.replace(/```json|```/g, "").trim());
-    state.content = content;
-    clearStatus();
-    renderOutput(content, item);
-  } catch (e) {
-    setError("AI generation failed: " + e.message);
+    res.json(content);
+  } catch (err) {
+    console.error("Generate error:", err.message);
+    res.status(500).json({ error: err.message });
   }
-}
+});
 
-// ─── REGEN SINGLE FIELD ───────────────────────────────────────────────────────
-async function regenField(field) {
-  if (!state.item) return;
-  document.getElementById(`regen-${field}`).textContent = "...";
-  try {
-    await generate(state.item);
-  } catch(e) {}
-}
-
-// ─── RENDER OUTPUT ────────────────────────────────────────────────────────────
-function renderOutput(c, item) {
-  document.getElementById("output-section").style.display = "block";
-
-  renderCard("out-title-card", "FB Title", "label-blue", `<div class="out-card-body title">${c.title}</div>`, c.title, "title");
-  renderCard("out-seo-card", "SEO Title", "label-teal", `<div class="out-card-body">${c.seoTitle}</div>`, c.seoTitle, "seoTitle");
-  renderCard("out-desc-card", "Description", "label-purple", `<div class="out-card-body" style="white-space:pre-line">${c.description}</div>`, c.description, "description");
-
-  const highlights = c.highlights?.map(h => `<div class="highlight-item"><span class="highlight-dot">✓</span><span>${h}</span></div>`).join("") || "";
-  renderCard("out-highlights-card", "Highlights", "label-amber", `<div class="out-card-body">${highlights}</div>`, c.highlights?.map(h=>`• ${h}`).join("\n") || "", "highlights");
-  renderCard("out-financing-card", "Financing", "label-green", `<div class="out-card-body">${c.financing}</div>`, c.financing, "financing");
-  renderCard("out-cta-card", "Call to Action", "label-coral", `<div class="out-card-body" style="font-weight:500">${c.cta}</div>`, c.cta, "cta");
-
-  renderPhotos(item.photos || []);
-  updatePublishPanel();
-}
-
-function renderCard(id, label, labelClass, bodyHtml, copyText, field) {
-  document.getElementById(id).innerHTML = `
-    <div class="out-card-header">
-      <span class="out-label ${labelClass}">${label}</span>
-      <div class="out-card-actions">
-        <button class="out-action-btn" id="regen-${field}" onclick="regenField('${field}')">↺ Regen</button>
-        <button class="out-action-btn" onclick="copyText(\`${copyText.replace(/`/g,'\\`')}\`, this)">Copy</button>
-      </div>
-    </div>
-    ${bodyHtml}
-  `;
-}
-
-function renderPhotos(photos) {
-  const grid = document.getElementById("photo-grid");
-  if (!photos.length) { grid.innerHTML = '<div style="color:#9ca3af;font-size:13px;padding:12px">No photos found. Add URLs in Manual Entry.</div>'; return; }
-  grid.innerHTML = photos.map((url, i) => {
-    const sel = state.selectedPhotos.includes(url);
-    const idx = state.selectedPhotos.indexOf(url);
-    return `<div class="photo-item ${sel ? 'selected' : ''}" onclick="togglePhoto('${url}', this)">
-      <img src="${url}" onerror="this.parentElement.style.display='none'" />
-      ${sel ? `<div class="photo-num">${idx+1}</div>` : `<div class="photo-overlay"><span style="color:white;font-size:24px">+</span></div>`}
-    </div>`;
-  }).join("");
-  updatePhotoCount();
-}
-
-function togglePhoto(url, el) {
-  if (state.selectedPhotos.includes(url)) {
-    state.selectedPhotos = state.selectedPhotos.filter(p => p !== url);
-  } else {
-    state.selectedPhotos.push(url);
-  }
-  renderPhotos(state.item?.photos || []);
-  updatePhotoCount();
-}
-
-function selectAllPhotos() { state.selectedPhotos = [...(state.item?.photos || [])]; renderPhotos(state.item?.photos || []); }
-function clearPhotos() { state.selectedPhotos = []; renderPhotos(state.item?.photos || []); }
-function updatePhotoCount() {
-  document.getElementById("photo-count").textContent = `${state.selectedPhotos.length} selected`;
-}
-
-function updatePublishPanel() {
-  const meta = document.getElementById("publish-meta");
-  const wrap = document.getElementById("fb-post-btn-wrap");
-  if (meta) meta.textContent = `${state.selectedPhotos.length} photo${state.selectedPhotos.length!==1?"s":""} selected · All copy ready`;
-  if (wrap) {
-    if (state.fbUser) {
-      wrap.innerHTML = `<button class="btn-fb-post" onclick="postToFacebook()">Post to Facebook Marketplace</button>`;
-    } else {
-      wrap.innerHTML = `<div class="fb-note">Connect Facebook above to enable one-click posting</div>`;
-    }
-  }
-}
-
-function postToFacebook() {
-  alert("Full Facebook posting requires Meta Marketplace API approval.\n\nUse 'Copy listing + open Facebook' to post manually right now.");
-}
-
-function copyAndOpenFB() {
-  if (!state.content) return;
-  const c = state.content;
-  const full = [c.title, "", c.description, "", c.highlights?.map(h=>`• ${h}`).join("\n"), "", c.financing, "", c.cta].join("\n");
-  navigator.clipboard.writeText(full).then(() => {
-    window.open("https://www.facebook.com/marketplace/create/vehicle", "_blank");
-  });
-}
-
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
-function showItemStrip(item) {
-  const name = item.title || `${item.year||""} ${item.make||""} ${item.model||""} ${item.trim||""}`.trim();
-  const strip = document.getElementById("item-strip");
-  strip.style.display = "flex";
-  strip.innerHTML = `
-    <strong>${name}</strong>
-    ${item.mileage ? `<span>${Number(item.mileage).toLocaleString()} mi</span>` : ""}
-    ${item.price ? `<span>$${Number(item.price).toLocaleString()}</span>` : ""}
-    ${item.photos?.length ? `<span class="strip-tag">📷 ${item.photos.length} photos</span>` : ""}
-  `;
-}
-
-function setStatus(msg) {
-  const el = document.getElementById("status-bar");
-  el.style.display = "flex";
-  el.textContent = msg;
-  document.getElementById("error-bar").style.display = "none";
-}
-
-function clearStatus() {
-  document.getElementById("status-bar").style.display = "none";
-}
-
-function setError(msg) {
-  clearStatus();
-  const el = document.getElementById("error-bar");
-  el.style.display = "block";
-  el.textContent = msg;
-}
-
-function clearOutput() {
-  document.getElementById("output-section").style.display = "none";
-  document.getElementById("item-strip").style.display = "none";
-  document.getElementById("error-bar").style.display = "none";
-  document.getElementById("status-bar").style.display = "none";
-}
-
-function copyText(text, btn) {
-  navigator.clipboard.writeText(text);
-  const orig = btn.textContent;
-  btn.textContent = "Copied!";
-  setTimeout(() => btn.textContent = orig, 1800);
-}
-
-function copyAll() {
-  if (!state.content) return;
-  const c = state.content;
-  const full = [c.title, "", c.description, "", c.highlights?.map(h=>`• ${h}`).join("\n"), "", c.financing, "", c.cta].join("\n");
-  navigator.clipboard.writeText(full);
-  const btn = event.target;
-  btn.textContent = "Copied!";
-  setTimeout(() => btn.textContent = "Copy Full Listing", 1800);
-}
-
-// Enter key on URL input
-document.getElementById("url-input").addEventListener("keydown", e => {
-  if (e.key === "Enter") runGenerate();
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`AutoLister Scraper running on port ${PORT}`);
 });
